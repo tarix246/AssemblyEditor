@@ -16,3 +16,5 @@ Since I have no idea how to make graphics, I simply told AI to make it for me wi
 
 Note that all of this was made for AT&T and Intel syntax, so ARM assembly will most likely not work.
 Ctrl + (A,C,V,S) work too
+
+The program is very lightweight (<1MB diskspace) and memor efficient (<10MB RAM usage)
