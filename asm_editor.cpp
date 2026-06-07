@@ -63,6 +63,7 @@ namespace Col {
     constexpr COLORREF COMMENT      = 0x006A9955; // green
     constexpr COLORREF STRING       = 0x00CE9178; // rust/orange
     constexpr COLORREF DIRECTIVE    = 0x00C586C0; // purple
+    constexpr COLORREF BRACKET      = 0x00FFD700; // gold/yellow for [ ]
     constexpr COLORREF LINE_NUM_BG  = 0x002A2A2A;
     constexpr COLORREF LINE_NUM_FG  = 0x00858585;
     constexpr COLORREF CARET        = 0x00AEAFAD;
@@ -88,6 +89,7 @@ enum class TT : uint8_t {
     COMMENT,
     STRING,
     DIRECTIVE,
+    BRACKET,
 };
 
 static COLORREF tokenColor(TT t) {
@@ -105,6 +107,7 @@ static COLORREF tokenColor(TT t) {
         case TT::COMMENT:   return Col::COMMENT;
         case TT::STRING:    return Col::STRING;
         case TT::DIRECTIVE: return Col::DIRECTIVE;
+        case TT::BRACKET:   return Col::BRACKET;
         default:            return Col::FG;
     }
 }
@@ -138,6 +141,125 @@ static const char* const STACK_KW[] = {
 };
 static const char* const NOP_KW[] = {
     "nop","nopl","nopw",nullptr
+};
+// General x86-64 instructions (colored same as mov/lea)
+static const char* const INSTR_KW[] = {
+    // Arithmetic
+    "add","addb","addw","addl","addq","adc","adcb","adcw","adcl","adcq",
+    "sub","subb","subw","subl","subq","sbb","sbbb","sbbw","sbbl","sbbq",
+    "mul","mulb","mulw","mull","mulq","imul","imulb","imulw","imull","imulq",
+    "div","divb","divw","divl","divq","idiv","idivb","idivw","idivl","idivq",
+    "inc","incb","incw","incl","incq","dec","decb","decw","decl","decq",
+    "neg","negb","negw","negl","negq",
+    "aaa","aas","aam","aad","daa","das",
+    "cbw","cwd","cwde","cdq","cdqe","cqo",
+    // Logic / bitwise
+    "and","andb","andw","andl","andq",
+    "or","orb","orw","orl","orq",
+    "xor","xorb","xorw","xorl","xorq",
+    "not","notb","notw","notl","notq",
+    // Shifts / rotates
+    "shl","shlb","shlw","shll","shlq","sal","salb","salw","sall","salq",
+    "shr","shrb","shrw","shrl","shrq","sar","sarb","sarw","sarl","sarq",
+    "rol","rolb","rolw","roll","rolq","ror","rorb","rorw","rorl","rorq",
+    "rcl","rclb","rclw","rcll","rclq","rcr","rcrb","rcrw","rcrl","rcrq",
+    "shld","shrd",
+    // Compare / test
+    "cmp","cmpb","cmpw","cmpl","cmpq",
+    "test","testb","testw","testl","testq",
+    // Set byte on condition
+    "sete","setne","setg","setge","setl","setle","seta","setae","setb","setbe",
+    "sets","setns","seto","setno","setp","setnp","setz","setnz",
+    // Conditional move
+    "cmove","cmovne","cmovg","cmovge","cmovl","cmovle",
+    "cmova","cmovae","cmovb","cmovbe","cmovs","cmovns","cmovo","cmovno",
+    "cmovz","cmovnz","cmovp","cmovnp",
+    // Bit manipulation (BMI/BMI2)
+    "bsf","bsr","bt","btc","btr","bts","bswap",
+    "andn","blsi","blsmsk","blsr","tzcnt","lzcnt","popcnt",
+    "bzhi","mulx","pdep","pext","rorx","sarx","shlx","shrx",
+    // String ops
+    "cmpsb","cmpsw","cmpsl","cmpsq","cmpsd",
+    "scasb","scasw","scasl","scasq","scasd",
+    "stosb","stosw","stosl","stosq","stosd",
+    "lodsb","lodsw","lodsl","lodsq","lodsd",
+    "insb","insw","insl","outsb","outsw","outsl",
+    "rep","repe","repne","repz","repnz",
+    // I/O
+    "in","inb","inw","inl","out","outb","outw","outl",
+    // Misc / control
+    "hlt","pause","wait","fwait","lock","xchg","xadd","cmpxchg","cmpxchg8b","cmpxchg16b",
+    "lfence","mfence","sfence","clflush","clflushopt","clwb",
+    "cpuid","rdtsc","rdtscp","rdmsr","wrmsr","rdpmc",
+    "lgdt","sgdt","lidt","sidt","lldt","sldt","ltr","str",
+    "lmsw","smsw","clts","invd","wbinvd","invlpg",
+    "lar","lsl","verr","verw","arpl",
+    "int","int3","into","bound","ud2","ud1",
+    "stc","clc","cmc","std","cld","sti","cli",
+    "lahf","sahf","pushf","pushfw","pushfq","popf","popfw","popfq",
+    "xlat","xlatb",
+    "xsave","xsavec","xsaveopt","xrstor","xgetbv","xsetbv",
+    // Address / misc
+    "nop2","nop3","nop4","nop5","nop6","nop7","nop8","nop9",
+    // SSE / SSE2 scalar & packed (common subset)
+    "addss","addsd","addps","addpd","subss","subsd","subps","subpd",
+    "mulss","mulsd","mulps","mulpd","divss","divsd","divps","divpd",
+    "sqrtss","sqrtsd","sqrtps","sqrtpd","rcpss","rcpps","rsqrtss","rsqrtps",
+    "maxss","maxsd","maxps","maxpd","minss","minsd","minps","minpd",
+    "cmpss","cmpsd","cmpps","cmppd","ucomiss","ucomisd","comiss","comisd",
+    "cvtss2sd","cvtsd2ss","cvtss2si","cvtsd2si","cvtsi2ss","cvtsi2sd",
+    "cvtps2pd","cvtpd2ps","cvtps2dq","cvtdq2ps","cvtpd2dq","cvtdq2pd",
+    "cvttss2si","cvttsd2si","cvttps2dq","cvttpd2dq",
+    "andps","andpd","andnps","andnpd","orps","orpd","xorps","xorpd",
+    "unpcklps","unpckhps","unpcklpd","unpckhpd",
+    "shufps","shufpd","pshufd","pshufhw","pshuflw","pshufw",
+    "movlps","movhps","movlpd","movhpd","movmskps","movmskpd",
+    "movntps","movntpd","movnti","movntq","movntdq",
+    "ldmxcsr","stmxcsr","prefetcht0","prefetcht1","prefetcht2","prefetchnta",
+    // SSE integer
+    "paddb","paddw","paddd","paddq","paddsb","paddsw","paddusb","paddusw",
+    "psubb","psubw","psubd","psubq","psubsb","psubsw","psubusb","psubusw",
+    "pmullw","pmulhw","pmulhuw","pmulld","pmuludq","pmuldq",
+    "pcmpeqb","pcmpeqw","pcmpeqd","pcmpeqq",
+    "pcmpgtb","pcmpgtw","pcmpgtd","pcmpgtq",
+    "pand","pandn","por","pxor","pnot",
+    "psllw","pslld","psllq","psrlw","psrld","psrlq","psraw","psrad",
+    "punpcklbw","punpcklwd","punpckldq","punpcklqdq",
+    "punpckhbw","punpckhwd","punpckhdq","punpckhqdq",
+    "packuswb","packusdw","packsswb","packssdw",
+    "pmaxsb","pmaxsw","pmaxsd","pmaxub","pmaxuw","pmaxud",
+    "pminsb","pminsw","pminsd","pminub","pminuw","pminud",
+    "pextrb","pextrw","pextrd","pextrq","pinsrb","pinsrw","pinsrd","pinsrq",
+    "pmovmskb","movdq2q","movq2dq",
+    "palignr","pblendw","pblendvb","blendps","blendpd","blendvps","blendvpd",
+    "ptest","vtestps","vtestpd",
+    // AVX (v-prefix representative)
+    "vmovaps","vmovups","vmovapd","vmovupd","vmovdqa","vmovdqu",
+    "vaddps","vaddpd","vsubps","vsubpd","vmulps","vmulpd","vdivps","vdivpd",
+    "vxorps","vxorpd","vandps","vandpd","vorps","vorpd",
+    "vpxor","vpand","vpor","vpandn","vpcmpeqb","vpcmpeqd",
+    "vbroadcastss","vbroadcastsd","vbroadcasti128",
+    "vperm2f128","vperm2i128","vpermq","vpermd","vpermps",
+    "vinsertf128","vinserti128","vextractf128","vextracti128",
+    "vzeroall","vzeroupper",
+    // FPU x87
+    "fld","flds","fldl","fldt","fld1","fldz","fldpi","fldl2e","fldl2t","fldlg2","fldln2",
+    "fst","fsts","fstl","fstp","fstps","fstpl","fstpt",
+    "fadd","fadds","faddl","faddp","fiadd","fiadds","fiaddl",
+    "fsub","fsubs","fsubl","fsubp","fsubr","fsubrs","fsubrl","fsubrp",
+    "fisub","fisubs","fisubl","fisubr","fisubrs","fisubrl",
+    "fmul","fmuls","fmull","fmulp","fimul","fimuls","fimull",
+    "fdiv","fdivs","fdivl","fdivp","fdivr","fdivrs","fdivrl","fdivrp",
+    "fidiv","fidivs","fidivl","fidivr","fidivrs","fidivrl",
+    "fcom","fcoms","fcoml","fcomp","fcomps","fcompl","fcompp",
+    "fucom","fucomp","fucompp","fxam","ftst","fabs","fchs","frndint",
+    "fsqrt","fscale","fxtract","fprem","fprem1","f2xm1","fyl2x","fyl2xp1",
+    "fptan","fpatan","fsin","fcos","fsincos",
+    "finit","fninit","fldcw","fstcw","fnstcw","fstenv","fnstenv",
+    "fldenv","frstor","fsave","fnsave","fwait","fnwait",
+    "ffree","fdecstp","fincstp","fnop",
+    "fxsave","fxrstor",
+    nullptr
 };
 // x86-64 registers (AT&T prefix % stripped before lookup)
 static const char* const REG_KW[] = {
@@ -195,21 +317,22 @@ static const char* const DIR_KW[] = {
 // Build a lookup table from keyword array
 static std::unordered_map<std::string, TT> buildKwMap() {
     std::unordered_map<std::string, TT> m;
-    m.reserve(300);
+    m.reserve(600); // bumped to accommodate INSTR_KW
     auto add = [&](const char* const* arr, TT t) {
         for (int i = 0; arr[i]; ++i) m[arr[i]] = t;
     };
-    add(REG_KW,     TT::REGISTER);
-    add(DIR_KW,     TT::DIRECTIVE);
-    add(NOP_KW,     TT::NOP);
-    add(STACK_KW,   TT::STACK);
-    add(CALL_RET_KW,TT::CALL_RET);
-    add(JUMP_KW,    TT::JUMP);
-    add(MOV_LEA_KW, TT::MOV_LEA);
-    // rip overrides register
-    m["rip"] = TT::RIP;
-    m["eip"] = TT::RIP;
-    m["ip"]  = TT::RIP;
+    add(REG_KW,      TT::REGISTER);
+    add(DIR_KW,      TT::DIRECTIVE);
+    add(NOP_KW,      TT::NOP);
+    add(STACK_KW,    TT::STACK);
+    add(CALL_RET_KW, TT::CALL_RET);
+    add(JUMP_KW,     TT::JUMP);
+    add(MOV_LEA_KW,  TT::MOV_LEA);
+    add(INSTR_KW,    TT::MOV_LEA);  // FIX: was missing — all general instructions now colored
+    // rip/flags override register
+    m["rip"]    = TT::RIP;
+    m["eip"]    = TT::RIP;
+    m["ip"]     = TT::RIP;
     m["rflags"] = TT::RIP;
     m["eflags"] = TT::RIP;
     return m;
@@ -262,7 +385,6 @@ static std::vector<Span> tokenizeLine(std::string_view line) {
             spans.push_back({col, len, t, tokenBold(t)});
     };
 
-    // Skip whitespace (no span for whitespace)
     while (i < n) {
         // --- Whitespace ---
         if (std::isspace((unsigned char)line[i])) { ++i; continue; }
@@ -273,11 +395,10 @@ static std::vector<Span> tokenizeLine(std::string_view line) {
             break;
         }
         if (line[i] == '#') {
-            // Check if it's a preprocessor directive or comment
             push(i, n - i, TT::COMMENT);
             break;
         }
-        // Block comment start /* (multi-line not truly handled per-line but mark rest)
+        // Block comment start /* (mark rest of line)
         if (line[i] == '/' && i+1 < n && line[i+1] == '*') {
             push(i, n - i, TT::COMMENT);
             break;
@@ -314,9 +435,8 @@ static std::vector<Span> tokenizeLine(std::string_view line) {
         }
 
         // --- Numeric constants ---
-        // 0x hex, 0b bin, decimal, or numbers with suffix h/b/d/q (MASM)
         if (std::isdigit((unsigned char)line[i]) ||
-            (line[i] == '-' && i+1 < n && std::isdigit((unsigned char)line[i+1])) ) {
+            (line[i] == '-' && i+1 < n && std::isdigit((unsigned char)line[i+1]))) {
             int start = i;
             if (line[i] == '-') ++i;
             if (line[i] == '0' && i+1 < n && (line[i+1]=='x'||line[i+1]=='X')) {
@@ -339,7 +459,6 @@ static std::vector<Span> tokenizeLine(std::string_view line) {
                 while (i < n && std::isalnum((unsigned char)line[i])) ++i;
                 push(start, i - start, TT::CONSTANT);
             } else if (i < n && (line[i] == '$' || std::isalpha((unsigned char)line[i]) || line[i]=='_')) {
-                // $$ or $label
                 while (i < n && isIdentCont(line[i])) ++i;
                 push(start, i - start, TT::CONSTANT);
             } else {
@@ -348,17 +467,23 @@ static std::vector<Span> tokenizeLine(std::string_view line) {
             continue;
         }
 
+        // --- Brackets [ ] ---  FIX: was falling through to DEFAULT
+        if (line[i] == '[' || line[i] == ']') {
+            push(i, 1, TT::BRACKET);
+            ++i;
+            continue;
+        }
+
         // --- Identifier / keyword / label ---
         if (isIdentStart(line[i])) {
             int start = i++;
             while (i < n && isIdentCont(line[i])) ++i;
 
-            // Check for label: identifier followed by ':' (with optional whitespace)
+            // Check for label: identifier followed by ':'
             {
                 int j = i;
                 while (j < n && line[j] == ' ') ++j;
                 if (j < n && line[j] == ':') {
-                    // This whole token + colon is a label
                     push(start, j - start + 1, TT::LABEL);
                     i = j + 1;
                     continue;
@@ -369,18 +494,16 @@ static std::vector<Span> tokenizeLine(std::string_view line) {
             auto low = toLower(raw);
 
             // Section names: .text .data .bss etc.
-            if (raw[0] == '.' ) {
+            if (raw[0] == '.') {
                 auto it = km.find(low);
                 if (it != km.end() && it->second == TT::DIRECTIVE) {
-                    // Section keywords (.text/.data/.bss) bold
-                    bool isSect = (low == ".text" || low == ".data" || low == ".bss" ||
+                    bool isSect = (low == ".text" || low == ".data" || low == ".bss"   ||
                                    low == ".rdata"|| low == ".rodata"|| low == ".code" ||
-                                   low == ".const"|| low == ".tls"  || low == ".rsrc" ||
-                                   low == ".reloc"|| low == ".debug"|| low == ".pdata"||
+                                   low == ".const"|| low == ".tls"  || low == ".rsrc"  ||
+                                   low == ".reloc"|| low == ".debug"|| low == ".pdata" ||
                                    low == ".xdata");
                     spans.push_back({start, i - start, isSect ? TT::SECTION : TT::DIRECTIVE, isSect});
                 } else {
-                    // Unknown dot-identifier: treat as directive
                     spans.push_back({start, i - start, TT::DIRECTIVE, false});
                 }
                 continue;
@@ -406,43 +529,33 @@ static std::vector<Span> tokenizeLine(std::string_view line) {
 // Editor state
 // ---------------------------------------------------------------------------
 struct Editor {
-    // Lines stored as UTF-8 (or ANSI – we keep it narrow internally)
     std::vector<std::string> lines;
 
-    // Cursor position
     int   curLine   = 0;
-    int   curCol    = 0;    // byte offset within line
+    int   curCol    = 0;
 
-    // Selection: anchor
     int   selLine   = 0;
     int   selCol    = 0;
     bool  hasSelection = false;
 
-    // Scroll offset
     int   scrollLine = 0;
-    int   scrollCol  = 0;   // in characters
+    int   scrollCol  = 0;
 
-    // Metrics (set during paint)
     int   charW  = 0;
     int   charH  = 0;
-    int   lineNumW = 0;    // width of line-number gutter in pixels
+    int   lineNumW = 0;
     int   visLines = 0;
     int   visChars = 0;
 
-    // Window handle
     HWND  hwnd = nullptr;
 
-    // Font
     HFONT font     = nullptr;
     HFONT fontBold = nullptr;
 
-    // File path
     wchar_t filePath[MAX_PATH] = {};
 
-    // Modified flag
     bool modified = false;
 
-    // Undo/Redo stack  (simple snapshot of full text – good enough for moderate files)
     struct Snapshot {
         std::vector<std::string> lines;
         int curLine, curCol;
@@ -494,7 +607,6 @@ struct Editor {
         if (scrollCol < 0) scrollCol = 0;
     }
 
-    // Convert (line, col) to pixel rect relative to client
     RECT caretRect(int ln, int col) const {
         RECT r;
         r.top    = (ln - scrollLine) * charH;
@@ -504,7 +616,6 @@ struct Editor {
         return r;
     }
 
-    // Line & col from pixel (x,y) relative to client
     void posFromPoint(int x, int y, int& ln, int& col) const {
         ln = y / charH + scrollLine;
         ln = std::clamp(ln, 0, (int)lines.size()-1);
@@ -512,11 +623,6 @@ struct Editor {
         col = std::clamp(col, 0, (int)lines[ln].size());
     }
 
-    // -----------------------------------------------------------------------
-    // Selection helpers
-    // -----------------------------------------------------------------------
-
-    // Normalise so (aL,aC) <= (bL,bC)
     void selNorm(int& aL, int& aC, int& bL, int& bC) const {
         if (aL > bL || (aL == bL && aC > bC)) {
             std::swap(aL, bL);
@@ -528,7 +634,6 @@ struct Editor {
         return !hasSelection || (curLine == selLine && curCol == selCol);
     }
 
-    // Collect selected text as a single string (lines joined with \n)
     std::string selText() const {
         if (selEmpty()) return {};
         int aL = selLine, aC = selCol, bL = curLine, bC = curCol;
@@ -543,7 +648,6 @@ struct Editor {
         return out;
     }
 
-    // Delete selected region; cursor moves to start of selection
     void deleteSelection() {
         if (selEmpty()) return;
         int aL = selLine, aC = selCol, bL = curLine, bC = curCol;
@@ -557,18 +661,15 @@ struct Editor {
         hasSelection = false;
     }
 
-    // Set anchor to current cursor (begin a new selection)
     void selAnchor() {
         selLine = curLine;
         selCol  = curCol;
         hasSelection = true;
     }
 
-    // Copy to Windows clipboard
     void copyToClipboard(HWND hwnd) const {
         if (selEmpty()) return;
         std::string txt = selText();
-        // Convert \n -> \r\n for Windows clipboard
         std::string out;
         out.reserve(txt.size() + 32);
         for (char c : txt) {
@@ -586,7 +687,6 @@ struct Editor {
         CloseClipboard();
     }
 
-    // Paste from Windows clipboard at cursor (replacing selection if any)
     void pasteFromClipboard(HWND hwnd) {
         if (!OpenClipboard(hwnd)) return;
         HGLOBAL hg = GetClipboardData(CF_TEXT);
@@ -628,14 +728,12 @@ static HFONT makeFont(int height, bool bold) {
         OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY,
         FIXED_PITCH | FF_MODERN,
-        L"Cascadia Mono"   // falls back to Consolas if not installed
+        L"Cascadia Mono"
     );
 }
 
-// If Cascadia Mono is unavailable, retry with Consolas
 static HFONT makeFont2(int height, bool bold) {
     HFONT f = makeFont(height, bold);
-    // Check if we actually got the right face
     LOGFONTW lf{};
     GetObjectW(f, sizeof(lf), &lf);
     if (std::wstring(lf.lfFaceName).find(L"Cascadia") == std::wstring::npos) {
@@ -659,14 +757,12 @@ static void updateScrollBars(HWND hwnd) {
     si.cbSize = sizeof(si);
     si.fMask  = SIF_ALL | SIF_DISABLENOSCROLL;
 
-    // Vertical
     si.nMin  = 0;
     si.nMax  = (int)g_ed.lines.size() - 1;
     si.nPage = g_ed.visLines;
     si.nPos  = g_ed.scrollLine;
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 
-    // Horizontal – find max line length
     int maxLen = 0;
     for (auto& l : g_ed.lines) maxLen = std::max(maxLen, (int)l.size());
     si.nMin  = 0;
@@ -683,19 +779,16 @@ static void onPaint(HWND hwnd) {
     RECT client;
     GetClientRect(hwnd, &client);
 
-    // --- Double-buffer ---
     HDC memDC = CreateCompatibleDC(hdc);
     HBITMAP memBmp = CreateCompatibleBitmap(hdc, client.right, client.bottom);
     HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, memBmp);
 
     SetBkMode(memDC, TRANSPARENT);
 
-    // Background
     HBRUSH bgBrush = CreateSolidBrush(Col::BG);
     FillRect(memDC, &client, bgBrush);
     DeleteObject(bgBrush);
 
-    // Measure char dimensions once
     SelectObject(memDC, g_ed.font);
     TEXTMETRICW tm{};
     GetTextMetricsW(memDC, &tm);
@@ -704,12 +797,10 @@ static void onPaint(HWND hwnd) {
     g_ed.visLines = (client.bottom / g_ed.charH) + 1;
     g_ed.visChars = ((client.right - g_ed.lineNumW) / g_ed.charW) + 1;
 
-    // Line number gutter width
     int numDigits = 1;
     for (int x = (int)g_ed.lines.size(); x >= 10; x /= 10) ++numDigits;
     g_ed.lineNumW = (numDigits + 2) * g_ed.charW;
 
-    // Draw gutter background
     RECT gutterRect = {0, 0, g_ed.lineNumW - g_ed.charW/2, client.bottom};
     HBRUSH gutterBrush = CreateSolidBrush(Col::LINE_NUM_BG);
     FillRect(memDC, &gutterRect, gutterBrush);
@@ -735,10 +826,9 @@ static void onPaint(HWND hwnd) {
             int yPx  = (li - g_ed.scrollLine) * g_ed.charH;
             int cStart = (li == aL) ? aC : 0;
             int cEnd   = (li == bL) ? bC : (int)g_ed.lines[li].size();
-            // Full-line selection: extend highlight to end of visible area
             int xStart = g_ed.lineNumW + (cStart - g_ed.scrollCol) * g_ed.charW;
             int xEnd   = (li < bL)
-                ? client.right   // full line selected
+                ? client.right
                 : g_ed.lineNumW + (cEnd - g_ed.scrollCol) * g_ed.charW;
             xStart = std::max(xStart, g_ed.lineNumW);
             xEnd   = std::max(xEnd,   g_ed.lineNumW);
@@ -750,7 +840,6 @@ static void onPaint(HWND hwnd) {
         DeleteObject(selBrush);
     }
 
-    // Render lines
     int firstLine = g_ed.scrollLine;
     int lastLine  = std::min((int)g_ed.lines.size()-1, firstLine + g_ed.visLines + 1);
 
@@ -758,7 +847,7 @@ static void onPaint(HWND hwnd) {
         int yPx = (li - g_ed.scrollLine) * g_ed.charH;
         const std::string& lineStr = g_ed.lines[li];
 
-        // --- Line number ---
+        // Line number
         {
             char buf[16];
             int nc = snprintf(buf, sizeof(buf), "%*d", numDigits, li + 1);
@@ -769,11 +858,8 @@ static void onPaint(HWND hwnd) {
 
         if (lineStr.empty()) continue;
 
-        // --- Syntax spans ---
         auto spans = tokenizeLine(lineStr);
 
-        // We'll render char by char within spans for simplicity & scroll correctness
-        // First build a per-char type array
         std::vector<TT>   types(lineStr.size(), TT::DEFAULT);
         std::vector<bool> bolds(lineStr.size(), false);
         for (auto& sp : spans) {
@@ -784,7 +870,6 @@ static void onPaint(HWND hwnd) {
             }
         }
 
-        // Render runs of same type (for performance)
         int ci = g_ed.scrollCol;
         int maxCi = std::min((int)lineStr.size(), g_ed.scrollCol + g_ed.visChars + 1);
         while (ci < maxCi) {
@@ -802,7 +887,7 @@ static void onPaint(HWND hwnd) {
         }
     }
 
-    // Draw caret
+    // Caret
     {
         RECT cr = g_ed.caretRect(g_ed.curLine, g_ed.curCol);
         HBRUSH caretBrush = CreateSolidBrush(Col::CARET);
@@ -811,7 +896,6 @@ static void onPaint(HWND hwnd) {
         DeleteObject(caretBrush);
     }
 
-    // Blit
     BitBlt(hdc, 0, 0, client.right, client.bottom, memDC, 0, 0, SRCCOPY);
     SelectObject(memDC, oldBmp);
     DeleteObject(memBmp);
@@ -839,7 +923,6 @@ static void insertNewline(Editor& ed) {
     std::string rest = line.substr(ed.curCol);
     line.erase(ed.curCol);
 
-    // Auto-indent: copy leading whitespace from current line
     std::string indent;
     for (char c : line) {
         if (c == ' ' || c == '\t') indent += c;
@@ -893,7 +976,7 @@ static void loadFile(Editor& ed, const wchar_t* path) {
 
     LARGE_INTEGER sz{};
     GetFileSizeEx(h, &sz);
-    if (sz.QuadPart > 64*1024*1024) { CloseHandle(h); return; } // 64 MB limit
+    if (sz.QuadPart > 64*1024*1024) { CloseHandle(h); return; }
 
     std::string buf((size_t)sz.QuadPart, '\0');
     DWORD read = 0;
@@ -908,7 +991,6 @@ static void loadFile(Editor& ed, const wchar_t* path) {
     ed.modified = false;
     wcscpy_s(ed.filePath, path);
 
-    // Strip \r
     std::string line;
     for (char c : buf) {
         if (c == '\r') continue;
@@ -988,7 +1070,6 @@ static HMENU buildMenu() {
 static void updateTitle(HWND hwnd) {
     wchar_t title[MAX_PATH + 32];
     const wchar_t* name = g_ed.filePath[0] ? g_ed.filePath : L"Untitled";
-    // Extract filename
     const wchar_t* slash = std::max(wcsrchr(name, L'\\'), wcsrchr(name, L'/'));
     if (slash) name = slash + 1;
     swprintf_s(title, L"%s%s - ASM Editor", g_ed.modified ? L"* " : L"", name);
@@ -1017,11 +1098,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
     case WM_CREATE: {
         ed.hwnd = hwnd;
-        ed.lines.push_back("");  // start with one empty line
+        ed.lines.push_back("");
         recreateFonts();
         SetMenu(hwnd, buildMenu());
-
-        // Enable caret
         CreateCaret(hwnd, nullptr, 2, g_fontSize + 2);
         ShowCaret(hwnd);
         return 0;
@@ -1055,8 +1134,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
     case WM_PAINT: {
         onPaint(hwnd);
-
-        // Update caret position
         RECT cr = ed.caretRect(ed.curLine, ed.curCol);
         SetCaretPos(cr.left, cr.top);
         return 0;
@@ -1066,13 +1143,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SCROLLINFO si{sizeof(si), SIF_ALL};
         GetScrollInfo(hwnd, SB_VERT, &si);
         switch (LOWORD(wParam)) {
-            case SB_LINEUP:       --ed.scrollLine; break;
-            case SB_LINEDOWN:     ++ed.scrollLine; break;
-            case SB_PAGEUP:       ed.scrollLine -= ed.visLines; break;
-            case SB_PAGEDOWN:     ed.scrollLine += ed.visLines; break;
-            case SB_THUMBTRACK:   ed.scrollLine = si.nTrackPos; break;
-            case SB_TOP:          ed.scrollLine = 0; break;
-            case SB_BOTTOM:       ed.scrollLine = (int)ed.lines.size()-1; break;
+            case SB_LINEUP:     --ed.scrollLine; break;
+            case SB_LINEDOWN:   ++ed.scrollLine; break;
+            case SB_PAGEUP:     ed.scrollLine -= ed.visLines; break;
+            case SB_PAGEDOWN:   ed.scrollLine += ed.visLines; break;
+            case SB_THUMBTRACK: ed.scrollLine = si.nTrackPos; break;
+            case SB_TOP:        ed.scrollLine = 0; break;
+            case SB_BOTTOM:     ed.scrollLine = (int)ed.lines.size()-1; break;
         }
         ed.scrollLine = std::clamp(ed.scrollLine, 0, (int)ed.lines.size()-1);
         InvalidateRect(hwnd, nullptr, FALSE);
@@ -1083,10 +1160,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SCROLLINFO si{sizeof(si), SIF_ALL};
         GetScrollInfo(hwnd, SB_HORZ, &si);
         switch (LOWORD(wParam)) {
-            case SB_LINELEFT:  --ed.scrollCol; break;
-            case SB_LINERIGHT: ++ed.scrollCol; break;
-            case SB_PAGELEFT:  ed.scrollCol -= ed.visChars; break;
-            case SB_PAGERIGHT: ed.scrollCol += ed.visChars; break;
+            case SB_LINELEFT:   --ed.scrollCol; break;
+            case SB_LINERIGHT:  ++ed.scrollCol; break;
+            case SB_PAGELEFT:   ed.scrollCol -= ed.visChars; break;
+            case SB_PAGERIGHT:  ed.scrollCol += ed.visChars; break;
             case SB_THUMBTRACK: ed.scrollCol = si.nTrackPos; break;
         }
         ed.scrollCol = std::max(0, ed.scrollCol);
@@ -1107,12 +1184,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         int x = LOWORD(lParam), y = HIWORD(lParam);
         bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
         if (!shift) {
-            // Fresh click: set anchor = cursor
             ed.posFromPoint(x, y, ed.curLine, ed.curCol);
             ed.selAnchor();
             ed.hasSelection = false;
         } else {
-            // Shift+click: extend selection from existing anchor
             ed.posFromPoint(x, y, ed.curLine, ed.curCol);
             ed.hasSelection = true;
         }
@@ -1134,7 +1209,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
     case WM_LBUTTONUP:
         ReleaseCapture();
-        // Collapse zero-length selection
         if (ed.curLine == ed.selLine && ed.curCol == ed.selCol)
             ed.hasSelection = false;
         return 0;
@@ -1161,7 +1235,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         bool ctrl  = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
         bool shift = (GetKeyState(VK_SHIFT)   & 0x8000) != 0;
 
-        // Helper: begin/extend selection when shift held, clear when not
         auto moveSel = [&]() {
             if (shift) {
                 if (!ed.hasSelection) ed.selAnchor();
@@ -1175,16 +1248,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 case 'Z': ed.undo(); updateTitle(hwnd); break;
                 case 'Y': ed.redo(); updateTitle(hwnd); break;
                 case 'A': {
-                    // Select all
                     ed.selLine = 0; ed.selCol = 0;
                     ed.curLine = (int)ed.lines.size()-1;
                     ed.curCol  = (int)ed.lines[ed.curLine].size();
                     ed.hasSelection = true;
                     break;
                 }
-                case 'C':
-                    ed.copyToClipboard(hwnd);
-                    return 0;
+                case 'C': ed.copyToClipboard(hwnd); return 0;
                 case 'X':
                     ed.copyToClipboard(hwnd);
                     ed.deleteSelection();
@@ -1239,7 +1309,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                     break;
                 case VK_LEFT:
                     if (!shift && !ed.selEmpty()) {
-                        // Jump to selection start
                         int aL = ed.selLine, aC = ed.selCol;
                         int bL = ed.curLine, bC = ed.curCol;
                         ed.selNorm(aL, aC, bL, bC);
@@ -1256,7 +1325,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                     break;
                 case VK_RIGHT:
                     if (!shift && !ed.selEmpty()) {
-                        // Jump to selection end
                         int aL = ed.selLine, aC = ed.selCol;
                         int bL = ed.curLine, bC = ed.curCol;
                         ed.selNorm(aL, aC, bL, bC);
@@ -1283,12 +1351,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                     moveSel();
                     ed.curCol = (int)ed.lines[ed.curLine].size();
                     break;
-                case VK_PRIOR: // Page Up
+                case VK_PRIOR:
                     moveSel();
                     ed.curLine = std::max(0, ed.curLine - ed.visLines);
                     ed.scrollLine = std::max(0, ed.scrollLine - ed.visLines);
                     break;
-                case VK_NEXT:  // Page Down
+                case VK_NEXT:
                     moveSel();
                     ed.curLine = std::min((int)ed.lines.size()-1, ed.curLine + ed.visLines);
                     ed.scrollLine = std::min((int)ed.lines.size()-1, ed.scrollLine + ed.visLines);
@@ -1368,12 +1436,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 DestroyWindow(hwnd);
                 break;
 
-            case ID_EDIT_UNDO: ed.undo(); updateTitle(hwnd); InvalidateRect(hwnd, nullptr, FALSE); break;
-            case ID_EDIT_REDO: ed.redo(); updateTitle(hwnd); InvalidateRect(hwnd, nullptr, FALSE); break;
+            case ID_EDIT_UNDO:  ed.undo(); updateTitle(hwnd); InvalidateRect(hwnd, nullptr, FALSE); break;
+            case ID_EDIT_REDO:  ed.redo(); updateTitle(hwnd); InvalidateRect(hwnd, nullptr, FALSE); break;
 
-            case ID_EDIT_COPY:
-                ed.copyToClipboard(hwnd);
-                break;
+            case ID_EDIT_COPY:  ed.copyToClipboard(hwnd); break;
             case ID_EDIT_CUT:
                 ed.copyToClipboard(hwnd);
                 ed.deleteSelection();
@@ -1409,7 +1475,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
 
     case WM_ERASEBKGND:
-        return 1; // We handle background in WM_PAINT
+        return 1;
 
     default:
         return DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -1420,20 +1486,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 // Entry point
 // ---------------------------------------------------------------------------
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, int nShow) {
-    // DPI awareness
     SetProcessDPIAware();
 
     INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_WIN95_CLASSES};
     InitCommonControlsEx(&icc);
 
-    // Register window class
     WNDCLASSEXW wc{};
     wc.cbSize        = sizeof(wc);
     wc.style         = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     wc.lpfnWndProc   = WndProc;
     wc.hInstance     = hInst;
     wc.hCursor       = LoadCursorW(nullptr, IDC_IBEAM);
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1); // overridden by WM_ERASEBKGND
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.lpszClassName = L"AsmEditorWnd";
     RegisterClassExW(&wc);
 
@@ -1450,11 +1514,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, int nShow) {
     ShowWindow(hwnd, nShow);
     UpdateWindow(hwnd);
 
-    // Open file from command line if provided
     if (cmdLine && cmdLine[0]) {
         wchar_t path[MAX_PATH];
         wcsncpy_s(path, cmdLine, MAX_PATH);
-        // Strip surrounding quotes if any
         if (path[0] == L'"') {
             size_t len = wcslen(path);
             if (len > 1 && path[len-1] == L'"') path[len-1] = L'\0';
@@ -1466,7 +1528,6 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, int nShow) {
         InvalidateRect(hwnd, nullptr, FALSE);
     }
 
-    // Add a drag-drop handler via WM_DROPFILES
     DragAcceptFiles(hwnd, TRUE);
 
     MSG msg{};
