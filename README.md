@@ -10,6 +10,7 @@ Since I have no idea how to make graphics, I simply told AI to make it for me wi
 8. sections
 9. nop instruction
 10. brackets
+11. comments
 
 (all above is in different colors, and I probably forgot some of them)
 
