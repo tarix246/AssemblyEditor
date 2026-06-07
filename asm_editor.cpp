@@ -7,6 +7,10 @@
   
   g++ asm_editor.cpp -o AssemblyEditor.exe -std=c++20 -lgdi32 -luser32 -lkernel32 -lcomctl32 -lcomdlg32 -lshell32 -municode -mwindows
 
+  and to run it:
+
+  .\AssemblyEditor
+  
   That should work if you have g++ installed. I have it installed through msys2, so try that.
   --------------------------------------------------------------------
   You have full right to edit this code and distribute it, as it isn't my code afterall.
